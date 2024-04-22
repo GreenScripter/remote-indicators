@@ -10,7 +10,7 @@ public class Line extends Shape {
 	public boolean depthTest;
 
 	public void render() {
-		Renderer.drawLine(pos1, pos2, color, 1, depthTest);
+		Renderer.drawLine(pos1, pos2, color, 1, false);
 	}
 
 	public String toString() {
