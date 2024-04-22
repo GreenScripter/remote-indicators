@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "remoteindicators",
+  "version": "${version}",
+
+  "name": "Remote Indicators",
+  "description": "Show highlighed regions from remote connections.",
+  "authors": [
+    "GreenScripter"
+  ],
+  "contact": {
+    "homepage": "",
+    "sources": ""
+  },
+
+  "license": "MIT",
+  "icon": "assets/tooltips/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "greenscripter.remoteindicators.RemoteIndicatorsMod"
+    ]
+  },
+  "mixins": [
+    "remoteindicators.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.11.3",
+
+    "minecraft": "1.20.x"
+  },
+  "suggests": {
+    "flamingo": "*"
+  }
+}
