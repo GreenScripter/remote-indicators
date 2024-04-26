@@ -4,7 +4,7 @@ public class Shape {
 
 	public String dimension;
 
-	public void render() {
+	public void render(Renderer rend) {
 
 	}
 }

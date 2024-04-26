@@ -10,8 +10,8 @@ public class Cuboid extends Shape {
 	public int color;
 	public boolean depthTest;
 
-	public void render() {
-		Renderer.drawBox(new Box(pos1, pos2), 1, color, false);
+	public void render(Renderer rend) {
+		rend.drawBoxPart(new Box(pos1, pos2), color);
 	}
 
 	public String toString() {

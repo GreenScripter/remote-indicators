@@ -2,7 +2,6 @@ package greenscripter.remoteindicators;
 
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 
@@ -16,7 +15,6 @@ import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 
@@ -26,12 +24,7 @@ public class Renderer {
 		return new int[] { (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF };
 	}
 
-	public static void drawBox(Box box, float lineWidth, int color, boolean depthTest) {
-		int[] rgba = colorToRGBA(color);
-		drawBox(box, lineWidth, rgba[0], rgba[1], rgba[2], rgba[3], depthTest);
-	}
-
-	public static void drawBox(Box box, float lineWidth, int r, int g, int b, int a, boolean depthTest) {
+	public static Renderer startDraw(float lineWidth, boolean depthTest) {
 		RenderSystem.enableBlend();
 		if (!depthTest) RenderSystem.disableDepthTest();
 		RenderSystem.depthMask(false);
@@ -46,15 +39,49 @@ public class Renderer {
 		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch()));
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw() + 180.0F));
 
-		matrices.translate(box.minX - camera.getPos().x, box.minY - camera.getPos().y, box.minZ - camera.getPos().z);
-
 		Tessellator tessellator = Tessellator.getInstance();
 		BufferBuilder buffer = tessellator.getBuffer();
 
 		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
+		Renderer r = new Renderer();
+		r.matrices = matrices;
+		r.buffer = buffer;
+		r.tessellator = tessellator;
+		r.camX = camera.getPos().x;
+		r.camY = camera.getPos().y;
+		r.camZ = camera.getPos().z;
+		return r;
+	}
 
-		vertexBoxLines(matrices, buffer, box.offset(new Vec3d(box.minX, box.minY, box.minZ).negate()), r, g, b, a);
+	Tessellator tessellator;
+	MatrixStack matrices;
+	double camX;
+	double camY;
+	double camZ;
+	BufferBuilder buffer;
 
+	public void drawBoxPart(Box box, int color) {
+		matrices.push();
+		matrices.translate(box.minX - camX, box.minY - camY, box.minZ - camZ);
+
+		vertexBoxLines(matrices, buffer, box.offset(new Vec3d(box.minX, box.minY, box.minZ).negate()), color);
+		matrices.pop();
+	}
+
+	public void drawLinePart(Vec3d from, Vec3d to, int color) {
+		matrices.push();
+
+		matrices.translate(from.x - camX, from.y - camY, from.z - camZ);
+		
+		Matrix4f model = matrices.peek().getPositionMatrix();
+		Matrix3f normal = matrices.peek().getNormalMatrix();
+		
+		vertexLine(matrices, model, normal, buffer, 0, 0, 0, (float) (to.x - from.x), (float) (to.y - from.y), (float) (to.z - from.z), color);
+
+		matrices.pop();
+	}
+
+	public void finishDraw(boolean depthTest) {
 		tessellator.draw();
 
 		RenderSystem.enableCull();
@@ -63,56 +90,76 @@ public class Renderer {
 		if (!depthTest) RenderSystem.enableDepthTest();
 	}
 
-	private static void vertexBoxLines(MatrixStack matrices, VertexConsumer vertexConsumer, Box box, int r, int g, int b, int a) {
+	public static void drawBox(Box box, float lineWidth, int color, boolean depthTest) {
+		RenderSystem.enableBlend();
+		if (!depthTest) RenderSystem.disableDepthTest();
+		RenderSystem.depthMask(false);
+		RenderSystem.disableCull();
+		RenderSystem.lineWidth(lineWidth);
+		RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
+
+		MatrixStack matrices = new MatrixStack();
+
+		@SuppressWarnings("resource")
+		Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch()));
+		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw() + 180.0F));
+
+		Tessellator tessellator = Tessellator.getInstance();
+		BufferBuilder buffer = tessellator.getBuffer();
+
+		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
+		//start
+		matrices.translate(box.minX - camera.getPos().x, box.minY - camera.getPos().y, box.minZ - camera.getPos().z);
+
+		vertexBoxLines(matrices, buffer, box.offset(new Vec3d(box.minX, box.minY, box.minZ).negate()), color);
+
+		//end
+		tessellator.draw();
+
+		RenderSystem.enableCull();
+		RenderSystem.disableBlend();
+		RenderSystem.depthMask(true);
+		if (!depthTest) RenderSystem.enableDepthTest();
+	}
+	private static void vertexBoxLines(MatrixStack matrices, VertexConsumer vertexConsumer, Box box, int color) {
 		float minX = (float) box.minX;
 		float minY = (float) box.minY;
 		float minZ = (float) box.minZ;
 		float maxX = (float) box.maxX;
 		float maxY = (float) box.maxY;
 		float maxZ = (float) box.maxZ;
-
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, minY, minZ), new Vector3f(maxX, minY, minZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, minY, minZ), new Vector3f(maxX, minY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, minY, maxZ), new Vector3f(minX, minY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, minY, maxZ), new Vector3f(minX, minY, minZ), r, g, b, a);
-
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, minY, maxZ), new Vector3f(minX, maxY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, minY, minZ), new Vector3f(minX, maxY, minZ), r, g, b, a);
-
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, minY, maxZ), new Vector3f(maxX, maxY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, minY, minZ), new Vector3f(maxX, maxY, minZ), r, g, b, a);
-
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, maxY, minZ), new Vector3f(maxX, maxY, minZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, maxY, minZ), new Vector3f(maxX, maxY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(maxX, maxY, maxZ), new Vector3f(minX, maxY, maxZ), r, g, b, a);
-		vertexLine(matrices, vertexConsumer, new Vector3f(minX, maxY, maxZ), new Vector3f(minX, maxY, minZ), r, g, b, a);
-	}
-
-	private static void vertexLine(MatrixStack matrices, VertexConsumer vertexConsumer, Vector3f start, Vector3f end, int r, int g, int b, int a) {
 		Matrix4f model = matrices.peek().getPositionMatrix();
 		Matrix3f normal = matrices.peek().getNormalMatrix();
 
-		Vector3f normalVec = getNormal(start, end);
+		vertexLine(matrices, model, normal, vertexConsumer, minX, minY, minZ, maxX, minY, minZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, minY, minZ, maxX, minY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, minY, maxZ, minX, minY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, minX, minY, maxZ, minX, minY, minZ, color);
 
-		vertexConsumer.vertex(model, start.x, start.y, start.z).color(r, g, b, a).normal(normal, normalVec.x(), normalVec.y(), normalVec.z()).next();
-		vertexConsumer.vertex(model, end.x, end.y, end.z).color(r, g, b, a).normal(normal, normalVec.x(), normalVec.y(), normalVec.z()).next();
+		vertexLine(matrices, model, normal, vertexConsumer, minX, minY, maxZ, minX, maxY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, minX, minY, minZ, minX, maxY, minZ, color);
+
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, minY, maxZ, maxX, maxY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, minY, minZ, maxX, maxY, minZ, color);
+
+		vertexLine(matrices, model, normal, vertexConsumer, minX, maxY, minZ, maxX, maxY, minZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, maxY, minZ, maxX, maxY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, maxX, maxY, maxZ, minX, maxY, maxZ, color);
+		vertexLine(matrices, model, normal, vertexConsumer, minX, maxY, maxZ, minX, maxY, minZ, color);
 	}
 
-	private static Vector3f getNormal(Vector3f v1, Vector3f v2) {
-		float xNormal = v2.x - v1.x;
-		float yNormal = v2.y - v1.y;
-		float zNormal = v2.z - v1.z;
-		float normalSqrt = MathHelper.sqrt(xNormal * xNormal + yNormal * yNormal + zNormal * zNormal);
+	private static void vertexLine(MatrixStack matrices, Matrix4f model, Matrix3f normal, VertexConsumer vertexConsumer, float startx, float starty, float startz, float endx, float endy, float endz, int color) {
 
-		return new Vector3f(xNormal / normalSqrt, yNormal / normalSqrt, zNormal / normalSqrt);
+		float xNormal = startx - endx;
+		float yNormal = starty - endy;
+		float zNormal = startz - endz;
+
+		vertexConsumer.vertex(model, startx, starty, startz).color(color).normal(normal, xNormal, yNormal, zNormal).next();
+		vertexConsumer.vertex(model, endx, endy, endz).color(color).normal(normal, xNormal, yNormal, zNormal).next();
 	}
 
 	public static void drawLine(Vec3d from, Vec3d to, int color, float width, boolean depthTest) {
-		int[] rgba = colorToRGBA(color);
-		drawLine(from, to, rgba[0], rgba[1], rgba[2], rgba[3], width, depthTest);
-	}
-
-	public static void drawLine(Vec3d from, Vec3d to, int r, int g, int b, int a, float width, boolean depthTest) {
 		RenderSystem.enableBlend();
 		if (!depthTest) RenderSystem.disableDepthTest();
 		RenderSystem.disableCull();
@@ -132,7 +179,9 @@ public class Renderer {
 		BufferBuilder buffer = tessellator.getBuffer();
 
 		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
-		vertexLine(matrices, buffer, new Vector3f(0f, 0f, 0f), new Vector3f((float) (to.x - from.x), (float) (to.y - from.y), (float) (to.z - from.z)), r, g, b, a);
+		Matrix4f model = matrices.peek().getPositionMatrix();
+		Matrix3f normal = matrices.peek().getNormalMatrix();
+		vertexLine(matrices, model, normal, buffer, 0f, 0f, 0f, (float) (to.x - from.x), (float) (to.y - from.y), (float) (to.z - from.z), color);
 		tessellator.draw();
 
 		RenderSystem.enableCull();

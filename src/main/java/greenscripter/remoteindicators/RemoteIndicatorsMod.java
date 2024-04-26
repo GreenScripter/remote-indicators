@@ -49,11 +49,13 @@ public class RemoteIndicatorsMod implements ModInitializer {
 		if (mc.world == null) return;
 
 		String id = mc.world.getRegistryKey().getValue().toString();
+		Renderer rend = Renderer.startDraw(1, false);
 		for (Shape s : shapes.values()) {
 			if (id.equals(s.dimension)) {
-				s.render();
+				s.render(rend);
 			}
 		}
+		rend.finishDraw(false);
 	}
 
 }

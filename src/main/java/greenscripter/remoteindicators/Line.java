@@ -9,8 +9,8 @@ public class Line extends Shape {
 	public int color;
 	public boolean depthTest;
 
-	public void render() {
-		Renderer.drawLine(pos1, pos2, color, 1, false);
+	public void render(Renderer rend) {
+		rend.drawLinePart(pos1, pos2, color);
 	}
 
 	public String toString() {
