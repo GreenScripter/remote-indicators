@@ -88,7 +88,7 @@ public class RenderSource {
 					}
 					remote.close();
 				} catch (Exception e) {
-					e.printStackTrace();
+					//					e.printStackTrace();
 				}
 				try {
 					Thread.sleep(5000);
