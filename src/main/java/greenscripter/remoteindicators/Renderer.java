@@ -7,6 +7,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.Tessellator;
@@ -18,6 +19,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 
+@SuppressWarnings("resource")
 public class Renderer {
 
 	public static int[] colorToRGBA(int color) {
@@ -34,15 +36,13 @@ public class Renderer {
 
 		MatrixStack matrices = new MatrixStack();
 
-		@SuppressWarnings("resource")
 		Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
 		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch()));
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw() + 180.0F));
 
 		Tessellator tessellator = Tessellator.getInstance();
-		BufferBuilder buffer = tessellator.getBuffer();
+		BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
 
-		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
 		Renderer r = new Renderer();
 		r.matrices = matrices;
 		r.buffer = buffer;
@@ -59,8 +59,10 @@ public class Renderer {
 	double camY;
 	double camZ;
 	BufferBuilder buffer;
+	boolean rendered;
 
 	public void drawBoxPart(Box box, int color) {
+		if (!rendered) rendered = true;
 		matrices.push();
 		matrices.translate(box.minX - camX, box.minY - camY, box.minZ - camZ);
 
@@ -69,20 +71,24 @@ public class Renderer {
 	}
 
 	public void drawLinePart(Vec3d from, Vec3d to, int color) {
+		if (!rendered) rendered = true;
 		matrices.push();
 
 		matrices.translate(from.x - camX, from.y - camY, from.z - camZ);
-		
+
 		Matrix4f model = matrices.peek().getPositionMatrix();
 		Matrix3f normal = matrices.peek().getNormalMatrix();
-		
+
 		vertexLine(matrices, model, normal, buffer, 0, 0, 0, (float) (to.x - from.x), (float) (to.y - from.y), (float) (to.z - from.z), color);
 
 		matrices.pop();
 	}
 
 	public void finishDraw(boolean depthTest) {
-		tessellator.draw();
+		if (rendered) {
+			// tessellator.draw();
+			BufferRenderer.drawWithGlobalProgram(buffer.end());
+		}
 
 		RenderSystem.enableCull();
 		RenderSystem.disableBlend();
@@ -100,28 +106,28 @@ public class Renderer {
 
 		MatrixStack matrices = new MatrixStack();
 
-		@SuppressWarnings("resource")
 		Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
 		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch()));
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw() + 180.0F));
 
 		Tessellator tessellator = Tessellator.getInstance();
-		BufferBuilder buffer = tessellator.getBuffer();
+		BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
 
-		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
-		//start
+		// start
 		matrices.translate(box.minX - camera.getPos().x, box.minY - camera.getPos().y, box.minZ - camera.getPos().z);
 
 		vertexBoxLines(matrices, buffer, box.offset(new Vec3d(box.minX, box.minY, box.minZ).negate()), color);
 
 		//end
-		tessellator.draw();
+		// tessellator.draw();
+		BufferRenderer.drawWithGlobalProgram(buffer.end());
 
 		RenderSystem.enableCull();
 		RenderSystem.disableBlend();
 		RenderSystem.depthMask(true);
 		if (!depthTest) RenderSystem.enableDepthTest();
 	}
+
 	private static void vertexBoxLines(MatrixStack matrices, VertexConsumer vertexConsumer, Box box, int color) {
 		float minX = (float) box.minX;
 		float minY = (float) box.minY;
@@ -155,8 +161,8 @@ public class Renderer {
 		float yNormal = starty - endy;
 		float zNormal = startz - endz;
 
-		vertexConsumer.vertex(model, startx, starty, startz).color(color).normal(normal, xNormal, yNormal, zNormal).next();
-		vertexConsumer.vertex(model, endx, endy, endz).color(color).normal(normal, xNormal, yNormal, zNormal).next();
+		vertexConsumer.vertex(model, startx, starty, startz).color(color).normal(matrices.peek(), xNormal, yNormal, zNormal);
+		vertexConsumer.vertex(model, endx, endy, endz).color(color).normal(matrices.peek(), xNormal, yNormal, zNormal);
 	}
 
 	public static void drawLine(Vec3d from, Vec3d to, int color, float width, boolean depthTest) {
@@ -168,7 +174,6 @@ public class Renderer {
 
 		MatrixStack matrices = new MatrixStack();
 
-		@SuppressWarnings("resource")
 		Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
 		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.getPitch()));
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw() + 180.0F));
@@ -176,13 +181,13 @@ public class Renderer {
 		matrices.translate(from.x - camera.getPos().x, from.y - camera.getPos().y, from.z - camera.getPos().z);
 
 		Tessellator tessellator = Tessellator.getInstance();
-		BufferBuilder buffer = tessellator.getBuffer();
+		BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
 
-		buffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
 		Matrix4f model = matrices.peek().getPositionMatrix();
 		Matrix3f normal = matrices.peek().getNormalMatrix();
 		vertexLine(matrices, model, normal, buffer, 0f, 0f, 0f, (float) (to.x - from.x), (float) (to.y - from.y), (float) (to.z - from.z), color);
-		tessellator.draw();
+		//tessellator.draw();
+		BufferRenderer.drawWithGlobalProgram(buffer.end());
 
 		RenderSystem.enableCull();
 		RenderSystem.disableBlend();

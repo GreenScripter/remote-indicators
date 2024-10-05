@@ -12,9 +12,6 @@ import com.google.gson.GsonBuilder;
 
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.VertexConsumerProvider.Immediate;
-import net.minecraft.client.util.math.MatrixStack;
 
 public class RemoteIndicatorsMod implements ModInitializer {
 
@@ -44,7 +41,7 @@ public class RemoteIndicatorsMod implements ModInitializer {
 
 	}
 
-	public static void render(MatrixStack matrices, float tickDelta, Camera camera, Immediate immediate) {
+	public static void render() {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc.world == null) return;
 
